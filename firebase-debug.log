@@ -1,0 +1,43 @@
+[debug] [2025-11-22T15:19:31.949Z] ----------------------------------------------------------------------
+[debug] [2025-11-22T15:19:31.952Z] Command:       F:\Dip Softwares\nodejs\node.exe C:\Users\devic\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init hosting
+[debug] [2025-11-22T15:19:31.952Z] CLI Version:   14.26.0
+[debug] [2025-11-22T15:19:31.953Z] Platform:      win32
+[debug] [2025-11-22T15:19:31.953Z] Node Version:  v22.20.0
+[debug] [2025-11-22T15:19:31.953Z] Time:          Sat Nov 22 2025 21:19:31 GMT+0600 (Bangladesh Standard Time)
+[debug] [2025-11-22T15:19:31.953Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  D:\connections_quote_tool-main
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2025-11-22T15:34:35.625Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-22T15:34:35.626Z] > authorizing via signed-in user (dip.preneurlab@gmail.com)
+[debug] [2025-11-22T15:34:35.628Z] Checked if tokens are valid: true, expires at: 1763828337917
+[debug] [2025-11-22T15:34:35.628Z] Checked if tokens are valid: true, expires at: 1763828337917
+[debug] [2025-11-22T15:34:35.630Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/your-firebase-project-id [none]
+[debug] [2025-11-22T15:34:36.986Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/your-firebase-project-id 403
+[debug] [2025-11-22T15:34:36.987Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/your-firebase-project-id {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2025-11-22T15:34:36.988Z] Request to https://firebase.googleapis.com/v1beta1/projects/your-firebase-project-id had HTTP Error: 403, The caller does not have permission
+[debug] [2025-11-22T15:34:37.491Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/your-firebase-project-id had HTTP Error: 403, The caller does not have permission
+    at responseToError (C:\Users\devic\AppData\Roaming\npm\node_modules\firebase-tools\lib\responseToError.js:53:12)
+    at RetryOperation._fn (C:\Users\devic\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:322:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[error] 
+[error] Error: Failed to get Firebase project your-firebase-project-id. Please make sure the project exists and your account has permission to access it.

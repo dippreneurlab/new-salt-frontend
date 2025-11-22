@@ -45,7 +45,7 @@ export interface PhaseSettings {
   [phaseName: string]: {
     includeProjectFees: boolean;
     includeProductionCosts: boolean;
-  }, []);
+  };
 }
 
 export interface Stage {
@@ -274,7 +274,7 @@ export default function Home() {
     } catch (error) {
       console.error('❌ Failed to migrate quotes:', error);
     }
-  };
+  }, []);
 
   // Load saved quote data when editing
   useEffect(() => {
