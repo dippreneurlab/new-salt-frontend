@@ -1,0 +1,11 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="salthubGradient" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#05D1D8"/>
+      <stop offset="1" stop-color="#9B42F3"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="22" fill="url(#salthubGradient)"/>
+  <path d="M30.5 13.2C28.66 11.02 26.1 9.8 23.2 9.8C18.14 9.8 14 13.84 14 19H18.6C18.6 16.34 20.88 14.2 23.54 14.2C25.35 14.2 27 15.46 27 17.26C27 18.69 25.94 19.8 24.16 20.04L21.36 20.44C16.38 21.14 13 24.45 13 29.02C13 33.62 16.74 37.4 22.64 37.4C27.28 37.4 31.06 34.72 31.94 30H27.22C26.64 31.84 24.92 33 22.66 33C20.44 33 18.74 31.64 18.74 29.66C18.74 28.02 19.76 26.86 21.96 26.56L24.94 26.18C30 25.52 33.4 22.26 33.4 17.5C33.4 15.2 32.5 13.42 30.5 13.2Z" fill="white"/>
+</svg>
+

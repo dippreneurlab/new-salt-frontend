@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quote Data Reset</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 720px; margin: 3rem auto; line-height: 1.6; color: #111; }
+    code { background: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
+    h1 { color: #0c4a6e; }
+  </style>
+</head>
+<body>
+  <h1>Cloud SQL Storage Enabled</h1>
+  <p>
+    LocalStorage is no longer used. Quote, pipeline, and review data now live in Cloud SQL behind Firebase Auth.
+    To clear test data, authenticate in the app and run the server-side cleanup endpoint or remove rows directly in
+    the <code>user_storage</code> table for your user ID.
+  </p>
+</body>
+</html>
