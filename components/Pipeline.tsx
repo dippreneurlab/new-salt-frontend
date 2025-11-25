@@ -369,9 +369,24 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
   const [monthLocks, setMonthLocks] = useState<Record<number, boolean>>({});
   const [monthNotes, setMonthNotes] = useState<Record<number, string>>({});
 
-  // Hydration guard
+  // Hydrate cloudStorage before rendering so we load existing pipeline data from the backend
   useEffect(() => {
-    setMounted(true);
+    let active = true;
+    const hydrate = async () => {
+      try {
+        await cloudStorage.hydrate();
+      } catch (err) {
+        console.error('Failed to hydrate cloud storage', err);
+      } finally {
+        if (active) {
+          setMounted(true);
+        }
+      }
+    };
+    hydrate();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Load/save Annual Plan entries in cloudStorage
@@ -639,7 +654,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
   // Load entries from cloudStorage on component mount
   useEffect(() => {
     // Ensure we're in the browser environment
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !mounted) return;
     
     console.log('Loading pipeline data from cloudStorage...');
     
@@ -693,7 +708,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
     // Overheads are now loaded by the useOverheadEmployees hook
     // Mark as loaded so subsequent saves can proceed without wiping storage
     setHasLoadedFromStorage(true);
-  }, []);
+  }, [mounted]);
   // Verify and fix project counter after entries are loaded to ensure no duplicates
   useEffect(() => {
     if (!hasLoadedFromStorage || entries.length === 0) return;
@@ -751,7 +766,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
         setProjectCounter(nextCounter);
       }
     }
-  }, [hasLoadedFromStorage]);
+  }, [hasLoadedFromStorage, entries, projectCounter]);
 
   // Save entries to cloudStorage whenever entries change
   useEffect(() => {
@@ -785,7 +800,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
 
   // Load and save freelancer costs from cloudStorage
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !mounted) return;
     const saved = cloudStorage.getItem('pipeline-freelancer-costs');
     if (saved) {
       try {
@@ -794,7 +809,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
         console.error('Failed to load freelancer costs:', error);
       }
     }
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -804,7 +819,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
 
   // Load Settings data from cloudStorage
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !mounted) return;
     try {
       const savedFxRate = cloudStorage.getItem('pipeline-fx-rate');
       if (savedFxRate) setFxRate(parseFloat(savedFxRate));
@@ -849,7 +864,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
-  }, []);
+  }, [mounted]);
 
   // Sync clientSettings with CLIENT_LIST (add new clients if they don't exist)
   useEffect(() => {
@@ -1007,6 +1022,31 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
     const fields = ['accounts','creative','design','strategy','media','studio','creator','social','omni','finance'] as const;
     return fields.reduce((sum, key) => sum + parseCurrencyInput((editForm as any)[key]), 0);
   }, [editForm]);
+
+  const persistPipelineEntries = useCallback((updatedEntries: PipelineEntry[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      cloudStorage.setItem('pipeline-entries', JSON.stringify(updatedEntries));
+    } catch (err) {
+      console.error('Failed to persist pipeline entries:', err);
+    }
+  }, []);
+
+  const appendPipelineLog = useCallback(
+    (logEntry: { type: 'addition' | 'change' | 'deletion'; projectCode: string; projectName: string; client: string; description: string; date: string; user: string }) => {
+      setPipelineChangeLog(prev => [logEntry, ...prev]);
+      try {
+        const currentLog = typeof window !== 'undefined' ? cloudStorage.getItem('pipeline-changelog') : null;
+        const parsedLog = currentLog ? JSON.parse(currentLog) : [];
+        if (typeof window !== 'undefined') {
+          cloudStorage.setItem('pipeline-changelog', JSON.stringify([logEntry, ...parsedLog]));
+        }
+      } catch (err) {
+        console.error('Failed to save change log:', err);
+      }
+    },
+    []
+  );
 
   const filteredEntries = useMemo(() => {
     let result = entries;
@@ -1315,13 +1355,12 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
       (updatedEntry.omni || 0) +
       (updatedEntry.finance || 0);
 
-    setEntries(prev => {
-      const updated = [...prev];
-      updated[editingIndex] = updatedEntry;
-      return updated;
-    });
+    const updatedEntries = entries.map((entry, idx) => 
+      idx === editingIndex ? updatedEntry : entry
+    );
+    setEntries(updatedEntries);
+    persistPipelineEntries(updatedEntries);
 
-    // Log the project change to change log
     const changeDescription = editForm.comments || 'Project details updated';
     const changeLog = {
       type: 'change' as const,
@@ -1332,19 +1371,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
       date: new Date().toISOString(),
       user: user.name
     };
-    setPipelineChangeLog(prev => [changeLog, ...prev]);
-    
-    // Save change log to cloudStorage immediately
-    try {
-      const currentLog = typeof window !== 'undefined' ? cloudStorage.getItem('pipeline-changelog') : null;
-      const parsedLog = currentLog ? JSON.parse(currentLog) : [];
-      const updatedLog = [changeLog, ...parsedLog];
-      if (typeof window !== 'undefined') {
-        cloudStorage.setItem('pipeline-changelog', JSON.stringify(updatedLog));
-      }
-    } catch (err) {
-      console.error('Failed to save change log:', err);
-    }
+    appendPipelineLog(changeLog);
 
     setEditDialogOpen(false);
     setEditingIndex(null);
@@ -1424,44 +1451,58 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
       }
     }
     
-    if (!editForm.comments.trim()) {
-      alert('Please provide comments explaining why this entry should be deleted.');
-      return;
-    }
-
     const confirmDelete = window.confirm(
-      `Submit deletion request for finance approval?\n\n` +
+      `Delete this project from the pipeline?\n\n` +
       `Project: ${entry.projectCode}\n` +
       `Client: ${entry.client}\n` +
       `Program: ${entry.programName}\n\n` +
-      `This will be sent to finance for review before deletion.`
+      `This will remove it from the forecast and log the deletion.`
     );
     
-    if (confirmDelete) {
-      // Create a deletion request for finance review
-      const deletionRequest = {
-        id: Date.now().toString(),
-        projectCode: entry.projectCode,
-        originalEntry: entry,
-        submittedChanges: null, // null indicates deletion
-        submittedBy: user?.name || 'Unknown User',
-        submittedAt: new Date().toISOString(),
-        type: 'Deletion Request',
-        status: 'Pending',
-        comments: editForm.comments.trim()
-      };
-      
-      setChangeRequests(prev => [...prev, deletionRequest]);
-      
-      // Mark the entry status as "Pending Deletion"
-      setEntries(prev => prev.map((e, idx) => 
-        idx === editingIndex ? { ...e, status: 'Pending Deletion' } : e
-      ));
-      
-      setEditDialogOpen(false);
-      setEditingIndex(null);
-      alert('Deletion request submitted for finance approval');
+    if (!confirmDelete) return;
+
+    const updatedEntries = entries.filter((_, idx) => idx !== editingIndex);
+    setEntries(updatedEntries);
+    persistPipelineEntries(updatedEntries);
+    setChangeRequests(prev => prev.filter(r => r.projectCode !== entry.projectCode));
+
+    const deletionLog = {
+      type: 'deletion' as const,
+      projectCode: entry.projectCode,
+      projectName: entry.programName,
+      client: entry.client,
+      description: editForm.comments.trim() || `Project deleted: ${entry.programName}`,
+      date: new Date().toISOString(),
+      user: user.name
+    };
+    appendPipelineLog(deletionLog);
+
+    // Remove from Quote Hub (Dashboard cloudStorage)
+    try {
+      const quotesData = cloudStorage.getItem('saltxc-quotes');
+      if (quotesData) {
+        const quotes = JSON.parse(quotesData);
+        const updatedQuotes = quotes.filter((q: any) => q.projectNumber !== entry.projectCode && q.id !== entry.projectCode);
+        cloudStorage.setItem('saltxc-quotes', JSON.stringify(updatedQuotes));
+      }
+    } catch (error) {
+      console.error('Failed to remove from Quote Hub:', error);
     }
+    
+    // Remove from Project Management Hub cloudStorage
+    try {
+      const pmData = cloudStorage.getItem('saltxc-all-quotes');
+      if (pmData) {
+        const pmQuotes = JSON.parse(pmData);
+        const updatedPMQuotes = pmQuotes.filter((q: any) => q.projectNumber !== entry.projectCode && q.id !== entry.projectCode);
+        cloudStorage.setItem('saltxc-all-quotes', JSON.stringify(updatedPMQuotes));
+      }
+    } catch (error) {
+      console.error('Failed to remove from PM Hub:', error);
+    }
+
+    setEditDialogOpen(false);
+    setEditingIndex(null);
   };
 
   const handleApproveChangeRequest = (requestId: string) => {
@@ -1833,25 +1874,10 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
     console.log('Creating new entry:', newEntry);
     console.log('Current entries before adding:', entries);
     
-    setEntries(prev => {
-      const newEntries = [newEntry, ...prev];
-      console.log('New entries array:', newEntries);
-      return newEntries;
-    });
+    const updatedEntries = [newEntry, ...entries];
+    setEntries(updatedEntries);
+    persistPipelineEntries(updatedEntries);
 
-    // Immediately persist to cloudStorage to guarantee save on refresh
-    try {
-      const currentStored = typeof window !== 'undefined' ? cloudStorage.getItem('pipeline-entries') : null;
-      const parsedStored: PipelineEntry[] = currentStored ? JSON.parse(currentStored) : [];
-      const updated = [newEntry, ...parsedStored];
-      if (typeof window !== 'undefined') {
-        cloudStorage.setItem('pipeline-entries', JSON.stringify(updated));
-      }
-    } catch (err) {
-      console.error('Immediate save to cloudStorage failed:', err);
-    }
-
-    // Log the project addition to change log
     const additionLog = {
       type: 'addition' as const,
       projectCode: finalProjectCode,
@@ -1861,24 +1887,8 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
       date: new Date().toISOString(),
       user: user.name
     };
-    setPipelineChangeLog(prev => [additionLog, ...prev]);
-    
-    // Save change log to cloudStorage immediately
-    try {
-      const currentLog = typeof window !== 'undefined' ? cloudStorage.getItem('pipeline-changelog') : null;
-      const parsedLog = currentLog ? JSON.parse(currentLog) : [];
-      const updatedLog = [additionLog, ...parsedLog];
-      if (typeof window !== 'undefined') {
-        cloudStorage.setItem('pipeline-changelog', JSON.stringify(updatedLog));
-      }
-    } catch (err) {
-      console.error('Failed to save change log:', err);
-    }
+    appendPipelineLog(additionLog);
 
-    // Do not auto-create a corresponding quote in the Quote Hub
-    
-    // Generate next unique project code and reset form
-    const updatedEntries = [newEntry, ...entries];
     const { code: nextProjectCode, newCounter: nextCounter } = generateUniqueProjectCode(updatedEntries, projectCounter + 1);
     setProjectCounter(nextCounter);
     setForm({

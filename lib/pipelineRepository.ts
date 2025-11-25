@@ -32,6 +32,16 @@ export interface PipelineEntry {
   updatedAt?: string;
 }
 
+export interface PipelineChange {
+  type: 'addition' | 'change' | 'deletion';
+  projectCode: string;
+  projectName?: string;
+  client?: string;
+  description: string;
+  date: string;
+  user: string;
+}
+
 const ensureUser = async (userId: string, email?: string) => {
   const safeEmail = email || `${userId}@placeholder.local`;
   await query(
@@ -163,6 +173,20 @@ const fromDbRow = (row: any): PipelineEntry => ({
   updatedAt: row.updated_at
 });
 
+const buildChangelog = (entries: PipelineEntry[], userEmail: string): PipelineChange[] => {
+  return entries
+    .map((entry) => ({
+      type: 'addition',
+      projectCode: entry.projectCode,
+      projectName: entry.programName,
+      client: entry.client,
+      description: 'Added/updated from Cloud SQL',
+      date: entry.updatedAt || entry.createdAt || new Date().toISOString(),
+      user: entry.updatedByEmail || entry.createdByEmail || userEmail || 'system'
+    }))
+    .sort((a, b) => (a.date > b.date ? -1 : 1));
+};
+
 export const replacePipelineEntries = async (userId: string, entries: PipelineEntry[], email?: string) => {
   await ensureUser(userId, email);
   // Upsert each entry
@@ -254,7 +278,7 @@ export const replacePipelineEntries = async (userId: string, entries: PipelineEn
   }
 };
 
-export const getPipelineEntriesForUser = async (userId: string): Promise<PipelineEntry[]> => {
+export const getPipelineEntriesForUser = async (_userId?: string): Promise<PipelineEntry[]> => {
   const res = await query(
     `
       SELECT po.*,
@@ -263,10 +287,103 @@ export const getPipelineEntriesForUser = async (userId: string): Promise<Pipelin
       FROM pipeline_opportunities po
       LEFT JOIN users cu ON cu.id = po.created_by
       LEFT JOIN users uu ON uu.id = po.updated_by
-      WHERE po.created_by = $1 OR po.updated_by = $1
       ORDER BY po.project_code ASC
-    `,
-    [userId]
+    `
   );
   return res.rows.map(fromDbRow);
 };
+
+export const upsertPipelineEntry = async (userId: string, entry: PipelineEntry, email?: string) => {
+  await ensureUser(userId, email);
+  const row = toDbRow(userId, entry);
+  const res = await query(
+    `
+      INSERT INTO pipeline_opportunities (
+        project_code, owner, client, program_name, program_type, region,
+        start_date, end_date, start_month, end_month, revenue, total_fees, status,
+        accounts_fees, creative_fees, design_fees, strategic_planning_fees, media_fees,
+        creator_fees, social_fees, omni_fees, digital_fees, finance_fees,
+        created_by, updated_by
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,
+        $7,$8,$9,$10,$11,$12,$13,
+        $14,$15,$16,$17,$18,
+        $19,$20,$21,$22,$23,
+        $24,$25
+      )
+      ON CONFLICT (project_code) DO UPDATE SET
+        owner = EXCLUDED.owner,
+        client = EXCLUDED.client,
+        program_name = EXCLUDED.program_name,
+        program_type = EXCLUDED.program_type,
+        region = EXCLUDED.region,
+        start_date = EXCLUDED.start_date,
+        end_date = EXCLUDED.end_date,
+        start_month = EXCLUDED.start_month,
+        end_month = EXCLUDED.end_month,
+        revenue = EXCLUDED.revenue,
+        total_fees = EXCLUDED.total_fees,
+        status = EXCLUDED.status,
+        accounts_fees = EXCLUDED.accounts_fees,
+        creative_fees = EXCLUDED.creative_fees,
+        design_fees = EXCLUDED.design_fees,
+        strategic_planning_fees = EXCLUDED.strategic_planning_fees,
+        media_fees = EXCLUDED.media_fees,
+        creator_fees = EXCLUDED.creator_fees,
+        social_fees = EXCLUDED.social_fees,
+        omni_fees = EXCLUDED.omni_fees,
+        digital_fees = EXCLUDED.digital_fees,
+        finance_fees = EXCLUDED.finance_fees,
+        updated_at = now(),
+        updated_by = EXCLUDED.updated_by
+      RETURNING *
+    `,
+    [
+      row.project_code,
+      row.owner,
+      row.client,
+      row.program_name,
+      row.program_type,
+      row.region,
+      row.start_date,
+      row.end_date,
+      row.start_month,
+      row.end_month,
+      row.revenue,
+      row.total_fees,
+      row.status,
+      row.accounts_fees,
+      row.creative_fees,
+      row.design_fees,
+      row.strategic_planning_fees,
+      row.media_fees,
+      row.creator_fees,
+      row.social_fees,
+      row.omni_fees,
+      row.digital_fees,
+      row.finance_fees,
+      row.created_by,
+      row.updated_by
+    ]
+  );
+  return fromDbRow(res.rows[0]);
+};
+
+export const deletePipelineEntry = async (projectCode: string) => {
+  await query('DELETE FROM pipeline_opportunities WHERE project_code = $1', [projectCode]);
+};
+
+export const getNextProjectCode = async (year: string): Promise<string> => {
+  const res = await query(
+    `SELECT project_code FROM pipeline_opportunities WHERE project_code LIKE 'P____-${year}' ORDER BY project_code DESC LIMIT 1`
+  );
+  if (!res.rows.length) return `P0001-${year}`;
+  const latest = res.rows[0].project_code as string;
+  const match = latest.match(/^P(\\d{4})-/);
+  const num = match ? parseInt(match[1], 10) + 1 : 1;
+  return `P${num.toString().padStart(4, '0')}-${year}`;
+};
+
+export const buildPipelineChangelog = (entries: PipelineEntry[], userEmail: string) =>
+  buildChangelog(entries, userEmail);

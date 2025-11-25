@@ -1,5 +1,10 @@
 import { query } from './db';
-import { getPipelineEntriesForUser, replacePipelineEntries, PipelineEntry } from './pipelineRepository';
+import {
+  getPipelineEntriesForUser,
+  replacePipelineEntries,
+  PipelineEntry,
+  buildPipelineChangelog,
+} from './pipelineRepository';
 import { getQuotesForUser, parseQuotesValue, replaceQuotes } from './quotesRepository';
 
 let storageTableReady = false;
@@ -131,18 +136,7 @@ export const listStorageValues = async (userId: string) => {
   base[PIPELINE_KEY] = JSON.stringify(pipelineEntries);
   base[QUOTES_KEY] = JSON.stringify(quotes);
 
-  // Build a simple changelog from pipeline entries so newsfeed always reflects DB
-  const changeLog = pipelineEntries
-    .map(entry => ({
-      type: 'addition',
-      projectCode: entry.projectCode,
-      projectName: entry.programName,
-      client: entry.client,
-      description: 'Added/updated from Cloud SQL',
-      date: entry.updatedAt || entry.createdAt || new Date().toISOString(),
-      user: entry.createdByEmail || entry.createdBy || entry.owner || 'system'
-    }))
-    .sort((a, b) => (a.date > b.date ? -1 : 1));
+  const changeLog = buildPipelineChangelog(pipelineEntries, base['email'] || userId);
   base['pipeline-changelog'] = JSON.stringify(changeLog);
 
   return base;
