@@ -138,6 +138,11 @@ export default function Home() {
 
   // Check for existing session on component mount
   useEffect(() => {
+    if (!firebaseAuth) {
+      console.warn('Firebase auth not configured; skipping auth listener.');
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
         const userData = {
@@ -362,7 +367,9 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
-      await firebaseSignOut(firebaseAuth);
+      if (firebaseAuth) {
+        await firebaseSignOut(firebaseAuth);
+      }
     } catch (err) {
       console.error('Error signing out of Firebase', err);
     }
