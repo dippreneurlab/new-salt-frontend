@@ -1,6 +1,6 @@
-import dynamic from 'next/dynamic';
+'use client';
 
-const AppClient = dynamic(() => import('./AppClient'), { ssr: false });
+import AppClient from './AppClient';
 
 export default function Page() {
   return <AppClient />;
