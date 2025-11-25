@@ -1,4 +1,4 @@
-name: GCP Cloud Run Auto Deploy
+name: GCP Cloud Run CI CD
 
 on:
   push:
