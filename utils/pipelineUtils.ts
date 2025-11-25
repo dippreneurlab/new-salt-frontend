@@ -1,3 +1,6 @@
+// Client-only helpers for pipeline data stored in browser/cloud storage.
+'use client';
+
 import { cloudStorage } from '@/lib/cloudStorage';
 
 export const CLIENT_LIST = [

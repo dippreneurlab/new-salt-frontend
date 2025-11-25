@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback, useEffect, useState, type SetStateAction } from 'react';
 import { getStorageItem, removeStorageItem, setStorageItem } from '@/lib/cloudStorageClient';
 

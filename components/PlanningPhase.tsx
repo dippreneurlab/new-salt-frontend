@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Project, Stage, Department, Role, PhaseData } from '../app/page';
+import { Project, Stage, Department, Role, PhaseData } from '../app/AppClient';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

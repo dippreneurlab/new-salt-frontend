@@ -1,3 +1,6 @@
+// Client-only Firebase initialization. Do not import from server components.
+'use client';
+
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
@@ -7,11 +10,20 @@ const firebaseConfig = {
   projectId: process.env.NEXT_PUBLIC_FB_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FB_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FB_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FB_APP_ID
-};
+  appId: process.env.NEXT_PUBLIC_FB_APP_ID,
+} as const;
 
-if (!firebaseConfig.apiKey) {
-  console.warn('Firebase client not fully configured. Check NEXT_PUBLIC_FB_* environment variables.');
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingKeys.length) {
+  // Throw only on the client at runtime to avoid silent failures.
+  throw new Error(
+    `Firebase client config missing: ${missingKeys.join(
+      ', '
+    )}. Populate NEXT_PUBLIC_* environment variables in the browser runtime.`
+  );
 }
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

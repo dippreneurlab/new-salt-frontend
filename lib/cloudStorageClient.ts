@@ -1,3 +1,5 @@
+'use client';
+
 import { authFetch } from './authFetch';
 
 const authorizedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {

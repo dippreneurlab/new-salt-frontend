@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
 import { firebaseAuth } from '@/lib/firebaseClient';
 import { authFetch } from '@/lib/authFetch';

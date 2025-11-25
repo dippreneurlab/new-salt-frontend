@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Department } from '../app/page';
+import { Department } from '../app/AppClient';
 
 interface AssignmentModalProps {
   isOpen: boolean;

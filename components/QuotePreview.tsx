@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Project, PhaseData } from '../app/page';
+import { Project, PhaseData } from '../app/AppClient';
 
 interface QuotePreviewProps {
   isOpen: boolean;

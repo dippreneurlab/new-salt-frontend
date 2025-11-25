@@ -1,4 +1,6 @@
-import { Project, PhaseData, QuoteReviewData } from '../app/page';
+'use client';
+
+import { Project, PhaseData, QuoteReviewData } from '../app/AppClient';
 import { cloudStorage } from '@/lib/cloudStorage';
 
 // Pipeline entry interface for creating quotes

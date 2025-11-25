@@ -1,6 +1,6 @@
 'use client';
 
-import { Project } from '../app/page';
+import { Project } from '../app/AppClient';
 import { Badge } from "@/components/ui/badge";
 
 interface ProjectSummaryProps {

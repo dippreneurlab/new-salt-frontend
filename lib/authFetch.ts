@@ -1,3 +1,6 @@
+// Client-only helper for authenticated fetch calls.
+'use client';
+
 import { firebaseAuth } from './firebaseClient';
 
 /**

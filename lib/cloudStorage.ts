@@ -1,3 +1,5 @@
+'use client';
+
 import { firebaseAuth } from './firebaseClient';
 import { getAllStorageItems, getStorageItem, removeStorageItem, setStorageItem } from './cloudStorageClient';
 
