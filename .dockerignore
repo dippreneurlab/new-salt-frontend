@@ -10,16 +10,5 @@ tmp
 **/*.pyc
 *.log
 .DS_Store
-.env
-.env.*
-README.md
-public
-components
-app
-hooks
-lib
-utils
 types
-package.json
 pnpm-lock.yaml
-tsconfig.json
