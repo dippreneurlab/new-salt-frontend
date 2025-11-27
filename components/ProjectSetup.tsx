@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Project, PhaseSettings } from '../types';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,35 +28,8 @@ const CLIENT_CATEGORIES = [
   'Category 5 - Baseline Booster'
 ];
 
-import { CLIENT_LIST } from '../utils/pipelineUtils';
-
-// Client-to-category mapping based on Pipeline data
-const CLIENT_CATEGORY_MAP: Record<string, string> = {
-  'Adidas': 'Category 3 - Prospective Growth',
-  'Bell': 'Category 5 - Baseline Booster',
-  'Coca-Cola Canada': 'Category 1 - Foundational',
-  'Coca-Cola USA': 'Category 1 - Foundational',
-  'Hershey': 'Category 3 - Prospective Growth',
-  'Holman': 'Category 4 - Service Anchors',
-  'Kraft Canada': 'Category 1 - Foundational',
-  'Kraft USA': 'Category 1 - Foundational',
-  'Labatt': 'Category 1 - Foundational',
-  'Luxe': 'Category 3 - Prospective Growth',
-  'Mars': 'Category 3 - Prospective Growth',
-  'McCain': 'Category 2 - Core Partners',
-  'Mercedes Benz': 'Category 5 - Baseline Booster',
-  'Microsoft CAN': 'Category 2 - Core Partners',
-  'Other': 'Category 5 - Baseline Booster',
-  'Other - New': 'Category 5 - Baseline Booster',
-  'Pointsbet': 'Category 2 - Core Partners',
-  'RBC': 'Category 1 - Foundational',
-  'Rona': 'Category 4 - Service Anchors',
-  'Sephora': 'Category 2 - Core Partners',
-  'Shopify': 'Category 2 - Core Partners',
-  'The Kitchen': 'Category 4 - Service Anchors',
-  'Toyota': 'Category 2 - Core Partners',
-  'Unilever': 'Category 3 - Prospective Growth'
-};
+import { DEFAULT_clientOptions, DEFAULT_RATE_CARD_MAP } from '../utils/pipelineUtils';
+import { usePipelineMetadata } from '@/hooks/usePipelineMetadata';
 
 const PHASES = [
   'Planning',
@@ -94,26 +67,6 @@ const RATE_MAPPING: Record<string, number> = {
   'Blended': 165
 };
 
-// Client-to-rate-card mapping for auto-selection
-const CLIENT_RATE_CARD_MAP: Record<string, string> = {
-  'Labatt': 'Labatt',
-  'RBC': 'RBC',
-  'Toyota': 'Toyota Retainer',
-  'Hershey': 'Hershey Retainer',
-  'Coca-Cola Canada': 'ABI',
-  'Coca-Cola USA': 'ABI',
-  'Bell': 'Rogers',
-  'Mars': 'ABI', // Mars uses ABI rate card
-  'Kraft Canada': 'ABI', // Kraft uses ABI rate card  
-  'Kraft USA': 'ABI', // Kraft uses ABI rate card
-  'McCain': 'Standard', // Explicit mapping to Standard
-  'Microsoft CAN': 'Standard', // Explicit mapping to Standard
-  'Shopify': 'Standard', // Explicit mapping to Standard
-  'Sephora': 'Standard', // Explicit mapping to Standard
-  'Unilever': 'Standard', // Explicit mapping to Standard
-  // All other clients default to 'Standard'
-};
-
 const BUDGET_TYPES = [
   'Net New',
   'Scope Adjustment'
@@ -137,6 +90,15 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
   });
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const { metadata } = usePipelineMetadata();
+  const clientOptions = useMemo(
+    () => (metadata.clients?.length ? metadata.clients : DEFAULT_clientOptions),
+    [metadata.clients]
+  );
+  const rateCardMap = useMemo(
+    () => (metadata.rateCardMap && Object.keys(metadata.rateCardMap).length ? metadata.rateCardMap : DEFAULT_RATE_CARD_MAP),
+    [metadata.rateCardMap]
+  );
 
   // Populate form data when initialProject is provided (for editing existing quotes)
   // Reset form data when initialProject is null (for new quotes)
@@ -150,7 +112,7 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
         fullProject: initialProject
       });
 
-      const autoRateCard = CLIENT_RATE_CARD_MAP[initialProject.clientName] || initialProject.rateCard || 'Standard';
+      const autoRateCard = rateCardMap[initialProject.clientName] || initialProject.rateCard || 'Standard';
       const startDate = (initialProject as any).startDate || (initialProject as any).inMarketDate || '';
       const endDate = (initialProject as any).endDate || (initialProject as any).projectCompletionDate || '';
 
@@ -184,7 +146,7 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
       });
       setIsInitialLoad(false); // Mark as ready for new quote
     }
-  }, [initialProject]);
+  }, [initialProject, rateCardMap]);
 
   // Debug: Monitor formData changes
   useEffect(() => {
@@ -333,7 +295,7 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
     
     // Auto-populate rate card and currency when client is selected
     if (field === 'clientName' && value && typeof value === 'string') {
-      const suggestedRateCard = CLIENT_RATE_CARD_MAP[value] || 'Standard';
+      const suggestedRateCard = rateCardMap[value] || 'Standard';
       
       // Get currency based on billing entity
       let currency = 'CAD'; // default
@@ -355,8 +317,8 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
         clientName: value,
         suggestedRateCard,
         currency,
-        foundInRateCardMap: !!CLIENT_RATE_CARD_MAP[value],
-        usingDefault: !CLIENT_RATE_CARD_MAP[value]
+        foundInRateCardMap: !!rateCardMap[value],
+        usingDefault: !rateCardMap[value]
       });
       
       // Always update the rate card and currency
@@ -507,7 +469,7 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CLIENT_LIST.map(client => (
+                  {clientOptions.map(client => (
                     <SelectItem key={client} value={client}>{client}</SelectItem>
                   ))}
                 </SelectContent>
@@ -557,11 +519,11 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
                   <Label htmlFor="rateCard">Rate Card *</Label>
                   {formData.clientName && formData.rateCard && (
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      CLIENT_RATE_CARD_MAP[formData.clientName] && CLIENT_RATE_CARD_MAP[formData.clientName] !== 'Standard'
+                      rateCardMap[formData.clientName] && rateCardMap[formData.clientName] !== 'Standard'
                         ? 'bg-green-100 text-green-700' 
                         : 'bg-blue-100 text-blue-700'
                     }`}>
-                      {CLIENT_RATE_CARD_MAP[formData.clientName] && CLIENT_RATE_CARD_MAP[formData.clientName] !== 'Standard'
+                      {rateCardMap[formData.clientName] && rateCardMap[formData.clientName] !== 'Standard'
                         ? '✓ Client-specific' 
                         : '○ Standard default'
                       }
@@ -574,7 +536,7 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
                 >
                   <SelectTrigger className={`${errors.rateCard ? 'border-red-500' : ''} ${
                     formData.clientName && formData.rateCard ? (
-                      CLIENT_RATE_CARD_MAP[formData.clientName] && CLIENT_RATE_CARD_MAP[formData.clientName] !== 'Standard'
+                      rateCardMap[formData.clientName] && rateCardMap[formData.clientName] !== 'Standard'
                         ? 'bg-green-50 border-green-200' 
                         : 'bg-blue-50 border-blue-200'
                     ) : ''
@@ -589,11 +551,11 @@ export default function ProjectSetup({ onSave, onSaveOnly, initialProject }: Pro
                 </Select>
                 {formData.clientName && formData.rateCard && (
                   <p className={`text-xs ${
-                    CLIENT_RATE_CARD_MAP[formData.clientName] && CLIENT_RATE_CARD_MAP[formData.clientName] !== 'Standard'
+                    rateCardMap[formData.clientName] && rateCardMap[formData.clientName] !== 'Standard'
                       ? 'text-green-600' 
                       : 'text-blue-600'
                   }`}>
-                    {CLIENT_RATE_CARD_MAP[formData.clientName] && CLIENT_RATE_CARD_MAP[formData.clientName] !== 'Standard'
+                    {rateCardMap[formData.clientName] && rateCardMap[formData.clientName] !== 'Standard'
                       ? `${formData.rateCard} rate card automatically selected for ${formData.clientName}`
                       : `Using Standard rate card (default for ${formData.clientName})`
                     }

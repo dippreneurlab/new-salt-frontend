@@ -1,37 +1,39 @@
-# Salt XC Quote Hub
+# Salt XC Quote Hub — Frontend (Next.js)
 
-Next.js 15 app with Firebase Auth, Firebase Hosting, and Cloud SQL (Postgres) persistence for pipeline, quotes, and overheads.
+Next.js 15 App Router UI that authenticates with Firebase and calls the FastAPI backend on port 5010. All data (pipeline, quotes, storage, overhead, roles/metadata) lives in Postgres/Cloud SQL behind the backend.
 
-## Stack
-- Next.js (app router)
-- Firebase Auth (client + admin)
-- Firebase Hosting (frameworks backend enabled in `firebase.json`)
-- Cloud SQL / Postgres via `pg`
+## Features
+- Firebase Authentication (client SDK + ID token forward to backend).
+- Pipeline table and changelog, quote creation/review, overhead employee management.
+- Cloud storage sync for user preferences and cached data.
+- PDF/HTML export helpers (html2canvas + jspdf) for quote previews.
+- Responsive dashboards for PMs and administrators with role-aware behaviors.
+
+## Technical Details
+- Next.js 15 (App Router), React 19, TypeScript 5.
+- Styling via Tailwind 4 + Radix UI primitives.
+- Firebase Web SDK for auth; tokens injected via `authFetch` and `cloudStorageClient`.
+- API base is configurable via `NEXT_PUBLIC_API_BASE_URL` (defaults to `http://localhost:5010`).
+- Local API routes under `app/api/*` exist to proxy to backend or handle server-side needs; prefer hitting the FastAPI service directly.
 
 ## Setup
-1. Copy environment template
-   ```bash
-   cp env.example .env.local
-   ```
-2. Fill in Firebase client + admin keys and a Postgres connection string (or `POSTGRES_*` vars).
-3. Install dependencies and run dev server
-   ```bash
-   npm install
-   npm run dev
-   ```
+1) Install dependencies
+```bash
+npm install
+```
+2) Configure environment
+```bash
+cp env.example .env.local
+```
+Fill in Firebase client keys and set `NEXT_PUBLIC_API_BASE_URL` to the FastAPI host (e.g., `http://localhost:5010`). Only keep server-only secrets (if any) in `.env` — don’t check them in.
 
-## Cloud SQL
-- Schema lives in `cloudsql_schema.sql` (`user_storage` key/value cache + `overhead_employees` table).
-- The app hydrates data after Firebase login; all `localStorage` usage has been replaced by Cloud SQL–backed storage.
+3) Run the frontend
+```bash
+npm run dev   # serves on http://localhost:3000
+```
+Ensure the backend is reachable on 5010 so API calls succeed.
 
-## Firebase Hosting
-- Configured in `firebase.json` with `frameworksBackend` for SSR.
-- Deploy after authenticating with the Firebase CLI:
-  ```bash
-  firebase use your-firebase-project-id
-  firebase deploy
-  ```
-
-## Notes
-- Authentication is required for all API routes (`/api/storage`, `/api/overhead-employees`).
-- To clear test data, remove rows from `user_storage`/`overhead_employees` for your Firebase `uid`.
+## Deployment Notes
+- The frontend is meant to be its own container/service (port 3000) talking to the FastAPI service (port 5010).
+- Provide the same Firebase client config and `NEXT_PUBLIC_API_BASE_URL` at build/runtime.
+- If using Next.js API routes that require database access, you must also supply Postgres env vars, but the recommended path is to route through the FastAPI backend.

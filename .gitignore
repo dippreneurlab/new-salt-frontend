@@ -51,3 +51,5 @@ functions/dist/
 # Ignore all type definition files inside node_modules
 functions/node_modules/**/dist/**
 functions/node_modules/**/*.d.ts
+
+**/.venv/**

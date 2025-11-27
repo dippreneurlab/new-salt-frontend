@@ -1,4 +1,4 @@
-name: GCP Cloud Run CI CD
+name: GCP Cloud Run CI CD (FastAPI)
 
 on:
   push:
@@ -37,9 +37,9 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # Create .env.production from your secret
-      - name: Create .env.production
-        run: echo "${{ secrets.ENV_FILE }}" > .env.production
+      # Create .env for the FastAPI service (optional at runtime)
+      - name: Create .env
+        run: echo "${{ secrets.ENV_FILE }}" > .env
 
       # Build image locally with Docker
       - name: Build Docker image
@@ -59,4 +59,5 @@ jobs:
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \
+            --port 5010 \
             --quiet

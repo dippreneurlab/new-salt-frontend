@@ -3,6 +3,7 @@ import { RATE_MAPPING_2025 } from '../utils/rateMapping2025';
 import BrandedHeader from './BrandedHeader';
 import { createQuoteFromPipeline } from '@/utils/quoteManager';
 import { useOverheadEmployees } from '../hooks/useOverheadEmployees';
+import { usePipelineMetadata } from '@/hooks/usePipelineMetadata';
 import { cloudStorage } from '@/lib/cloudStorage';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +45,7 @@ const OWNER_OPTIONS = [
   'Steve B', 'Dane H', 'Carol P', 'Rob C', 'Sandra R'
 ];
 
-import { CLIENT_LIST } from '../utils/pipelineUtils';
+import { DEFAULT_clientOptions } from '../utils/pipelineUtils';
 
 const MONTH_OPTIONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'];
 
@@ -251,6 +252,11 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
   const [adminView, setAdminView] = useState<'executiveSummary' | 'overview' | 'annualPlan' | 'weighted' | 'overheads' | 'financeReporting' | 'settings'>('executiveSummary');
   const [selectedUserView, setSelectedUserView] = useState<'executive' | 'pipeline' | 'settings'>('executive');
+  const { metadata } = usePipelineMetadata();
+  const clientOptions = useMemo(
+    () => (metadata.clients?.length ? metadata.clients : DEFAULT_clientOptions),
+    [metadata.clients]
+  );
 
   // Team member access management state
   type TeamMember = {
@@ -834,8 +840,8 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
       if (savedClientSettings) {
         setClientSettings(JSON.parse(savedClientSettings));
       } else {
-        // Initialize with CLIENT_LIST if not found
-        const initialSettings = CLIENT_LIST.map(name => ({
+        // Initialize with clientOptions if not found
+        const initialSettings = clientOptions.map(name => ({
           name,
           billingEntity: 'Salt XC Canada' as 'Salt XC Canada' | 'Salt XC US'
         }));
@@ -866,11 +872,11 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
     }
   }, [mounted]);
 
-  // Sync clientSettings with CLIENT_LIST (add new clients if they don't exist)
+  // Sync clientSettings with clientOptions (add new clients if they don't exist)
   useEffect(() => {
     if (clientSettings.length === 0) return;
     const existingClients = new Set(clientSettings.map(c => c.name));
-    const newClients = CLIENT_LIST.filter(name => !existingClients.has(name));
+    const newClients = clientOptions.filter(name => !existingClients.has(name));
     if (newClients.length > 0) {
       setClientSettings(prev => [
         ...prev,
@@ -3545,7 +3551,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                     };
 
                     const allClients = sortClientsWithOtherAtEnd(
-                      CLIENT_LIST.filter(c => {
+                      clientOptions.filter(c => {
                         const planFees = annualPlanEntries[c]?.planFees || 0;
                         const confirmedFees = confirmedFeesByClient[c] || 0;
                         return planFees > 0 || confirmedFees > 0;
@@ -3678,7 +3684,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                   };
 
                   const canadaClients = sortClientsWithOtherAtEnd(
-                    CLIENT_LIST.filter(c => {
+                    clientOptions.filter(c => {
                     const planFees = annualPlanEntries[c]?.planFees || 0;
                     const actualFees = actualsByClient[c]?.actualFees || 0;
                       return (planFees > 0 || actualFees > 0) && getClientBillingEntity(c) === 'Salt XC Canada';
@@ -3686,7 +3692,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                   );
 
                   const usClients = sortClientsWithOtherAtEnd(
-                    CLIENT_LIST.filter(c => {
+                    clientOptions.filter(c => {
                       const planFees = annualPlanEntries[c]?.planFees || 0;
                       const actualFees = actualsByClient[c]?.actualFees || 0;
                       return (planFees > 0 || actualFees > 0) && getClientBillingEntity(c) === 'Salt XC US';
@@ -3853,8 +3859,8 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                     };
 
                     // Sort clients: alphabetically with "Other" and "NBD" at the bottom
-                    const regularClients = CLIENT_LIST.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
-                    const otherClients = CLIENT_LIST.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
+                    const regularClients = clientOptions.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
+                    const otherClients = clientOptions.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
                     const sortedClients = [...regularClients, ...otherClients];
                     
                     // Group clients by billing entity
@@ -4198,8 +4204,8 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                       });
 
                       // Sort clients: alphabetically with "Other" and "NBD" at the bottom
-                      const regularClients = CLIENT_LIST.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
-                      const otherClients = CLIENT_LIST.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
+                      const regularClients = clientOptions.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
+                      const otherClients = clientOptions.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
                       const sortedClients = [...regularClients, ...otherClients];
 
                       // Helper to get billing entity for a client
@@ -4610,8 +4616,8 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                       });
 
                       // Sort clients: alphabetically with "Other" and "NBD" at the bottom
-                      const regularClients = CLIENT_LIST.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
-                      const otherClients = CLIENT_LIST.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
+                      const regularClients = clientOptions.filter(c => !c.startsWith('Other -') && !c.startsWith('NBD -')).sort();
+                      const otherClients = clientOptions.filter(c => c.startsWith('Other -') || c.startsWith('NBD -')).sort();
                       const sortedClients = [...regularClients, ...otherClients];
 
                       // Helper to get billing entity for a client
@@ -4760,7 +4766,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                     className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">All Clients</option>
-                    {CLIENT_LIST.map(client => (
+                    {clientOptions.map(client => (
                       <option key={client} value={client}>{client}</option>
                     ))}
                   </select>
@@ -6323,7 +6329,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
               <Select value={form.client} onValueChange={(v) => setForm(prev => ({...prev, client: v}))}>
                 <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                     <SelectContent>
-                  {CLIENT_LIST.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                  {clientOptions.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -6447,7 +6453,7 @@ export default function Pipeline({ user, onLogout, onBack, userView = 'Admin', i
                 <Select value={editForm.client} onValueChange={(v) => setEditForm(prev => ({...prev, client: v}))}>
                   <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                   <SelectContent>
-                    {CLIENT_LIST.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                    {clientOptions.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>

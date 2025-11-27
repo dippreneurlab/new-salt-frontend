@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,12 @@ interface LoginProps {
   onShowSignUp: () => void;
 }
 
+declare global {
+  interface Window {
+    grecaptcha?: any;
+  }
+}
+
 export default function Login({ onLogin, onShowSignUp }: LoginProps) {
   const [formData, setFormData] = useState({
     email: '',
@@ -22,20 +28,90 @@ export default function Login({ onLogin, onShowSignUp }: LoginProps) {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState('');
 
-  // Simple authentication - in a real app, this would connect to a backend
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const recaptchaWidgetId = useRef<number | null>(null);
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+
+  // Load Google reCAPTCHA script
+  useEffect(() => {
+    if (!recaptchaSiteKey) return;
+
+    const onReady = () => setRecaptchaReady(true);
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://www.google.com/recaptcha/api.js?render=explicit"]'
+    );
+
+    if (existing) {
+      if (window.grecaptcha) {
+        onReady();
+      } else {
+        existing.addEventListener('load', onReady, { once: true });
+        return () => existing.removeEventListener('load', onReady);
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', onReady, { once: true });
+    document.body.appendChild(script);
+
+    return () => {
+      script.removeEventListener('load', onReady);
+    };
+  }, [recaptchaSiteKey]);
+
+  // Render reCAPTCHA widget once ready
+  useEffect(() => {
+    if (!recaptchaReady || !recaptchaSiteKey || !recaptchaRef.current || !window.grecaptcha) return;
+    if (recaptchaWidgetId.current !== null) return;
+
+    recaptchaWidgetId.current = window.grecaptcha.render(recaptchaRef.current, {
+      sitekey: recaptchaSiteKey,
+      callback: (token: string) => {
+        setRecaptchaToken(token);
+        setErrors(prev => ({ ...prev, recaptcha: '' }));
+      },
+      'expired-callback': () => {
+        setRecaptchaToken('');
+        setErrors(prev => ({ ...prev, recaptcha: 'Captcha expired, please try again.' }));
+      },
+      'error-callback': () => {
+        setRecaptchaToken('');
+        setErrors(prev => ({ ...prev, recaptcha: 'Captcha failed to load. Please refresh and try again.' }));
+      }
+    });
+  }, [recaptchaReady, recaptchaSiteKey]);
+
+  const resetRecaptcha = () => {
+    if (recaptchaWidgetId.current !== null && window.grecaptcha?.reset) {
+      window.grecaptcha.reset(recaptchaWidgetId.current);
+      setRecaptchaToken('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setFormError(null);
-    // Reset errors
     setErrors({});
     
-    // Basic validation
     const newErrors: { [key: string]: string } = {};
     if (!formData.email) newErrors.email = 'Email is required';
     if (!formData.password) newErrors.password = 'Password is required';
+    if (recaptchaSiteKey && !recaptchaToken) {
+      newErrors.recaptcha = recaptchaReady
+        ? 'Please complete the captcha'
+        : 'Captcha is still loading, please wait a moment';
+    }
     
     if (Object.keys(newErrors).length > 0) {
+      if (newErrors.recaptcha) resetRecaptcha();
       setErrors(newErrors);
       return;
     }
@@ -60,6 +136,7 @@ export default function Login({ onLogin, onShowSignUp }: LoginProps) {
     } catch (err) {
       console.error('Firebase sign-in failed', err);
       setFormError('Unable to sign in. Check your credentials and try again.');
+      resetRecaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -114,6 +191,22 @@ export default function Login({ onLogin, onShowSignUp }: LoginProps) {
                   <p className="text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
+
+              {recaptchaSiteKey ? (
+                <div className="space-y-2">
+                  <Label>Human Check</Label>
+                  <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                    <div ref={recaptchaRef} className="flex justify-center" />
+                  </div>
+                  {errors.recaptcha && (
+                    <p className="text-sm text-red-600">{errors.recaptcha}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-amber-600">
+                  reCAPTCHA key missing. Add NEXT_PUBLIC_RECAPTCHA_SITE_KEY to enable bot protection.
+                </p>
+              )}
 
               {formError && (
                 <p className="text-sm text-red-600">{formError}</p>
