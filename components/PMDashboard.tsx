@@ -4,9 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { formatCurrency } from '../utils/currency';
 import BrandedHeader from './BrandedHeader';
 import { cloudStorage } from '@/lib/cloudStorage';
+import { authFetch } from '@/lib/authFetch';
 
 interface User {
   email: string;
@@ -73,6 +81,42 @@ interface PMDashboardProps {
   isEmbedded?: boolean; // When true, hide header
 }
 
+const parseCurrencyInput = (value: string): number => {
+  if (!value) return 0;
+  const numeric = value.replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(numeric || '0');
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+const formatCurrencyInput = (value: string): string => {
+  const numeric = value.replace(/[^\d]/g, '');
+  if (!numeric) return '';
+  return '$' + Number(numeric).toLocaleString('en-US', { maximumFractionDigits: 0 });
+};
+
+const computeNextProjectCode = (entries: PipelineEntry[]): string => {
+  const year = new Date().getFullYear().toString().slice(-2);
+  const nums = entries
+    .map((e) => e.projectCode)
+    .filter((c): c is string => !!c && c.endsWith(`-${year}`))
+    .map((c) => {
+      const match = c.match(/^P(\d+)-/);
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .filter((n) => !isNaN(n));
+  const next = nums.length ? Math.max(...nums) + 1 : 1;
+  return `P${String(next).padStart(4, '0')}-${year}`;
+};
+
+const OWNER_OPTIONS = [
+  'Kait D', 'Bianca M', 'Marcin B', 'Zak C', 'Mike M',
+  'Steve B', 'Dane H', 'Carol P', 'Rob C', 'Sandra R'
+];
+
+const STATUS_OPTIONS = ['open', 'confirmed', 'high-pitch', 'medium-pitch', 'low-pitch', 'whitespace'];
+const REGION_OPTIONS = ['Canada', 'US'];
+const PROGRAM_TYPE_OPTIONS = ['Integrated', 'Media', 'XM'];
+
 export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject, onCreateNew, onOpenPerson, onOpenProjectWithData, userView, onUserViewChange, isEmbedded = false }: PMDashboardProps) {
   const [pipelineEntries, setPipelineEntries] = useState<PipelineEntry[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -82,6 +126,34 @@ export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [sortBy, setSortBy] = useState<'date' | 'client' | 'project'>('date');
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const [newModalOpen, setNewModalOpen] = useState(false);
+  const [newForm, setNewForm] = useState({
+    projectCode: '',
+    entryType: 'In Plan' as 'In Plan' | 'New to Plan',
+    status: 'open',
+    owner: '',
+    client: '',
+    programName: '',
+    region: 'Canada',
+    programType: 'Integrated',
+    startMonth: '',
+    endMonth: '',
+    revenue: '',
+    accounts: '',
+    creative: '',
+    design: '',
+    strategy: '',
+    media: '',
+    studio: '',
+    creator: '',
+    social: '',
+    omni: '',
+    finance: '',
+  });
+  const newTotalFees = useMemo(() => {
+    const fields = ['accounts','creative','design','strategy','media','studio','creator','social','omni','finance'] as const;
+    return fields.reduce((sum, key) => sum + parseCurrencyInput((newForm as any)[key]), 0);
+  }, [newForm]);
   
   // Function to organize entries into parent-child hierarchy
   const organizeHierarchy = (entries: PipelineEntry[]) => {
@@ -199,6 +271,18 @@ export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject
     };
   }, []);
 
+  useEffect(() => {
+    if (!newModalOpen) return;
+    setNewForm((prev) => ({
+      ...prev,
+      projectCode: computeNextProjectCode(pipelineEntries),
+      owner: prev.owner || user.name,
+      status: 'open',
+      region: prev.region || 'Canada',
+      programType: prev.programType || 'Integrated',
+    }));
+  }, [newModalOpen, pipelineEntries, user.name]);
+
   // No explicit click action requested; we list people from PM resourcing across all projects
 
 
@@ -227,6 +311,88 @@ export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject
       });
     setFiltered(list);
   }, [pipelineEntries, searchTerm, statusFilter, sortBy]);
+
+  const handleOpenNew = () => {
+    setNewForm((prev) => ({
+      ...prev,
+      projectCode: computeNextProjectCode(pipelineEntries),
+      owner: prev.owner || user.name,
+      status: 'open',
+      region: prev.region || 'Canada',
+      programType: prev.programType || 'Integrated',
+      revenue: '',
+      accounts: '',
+      creative: '',
+      design: '',
+      strategy: '',
+      media: '',
+      studio: '',
+      creator: '',
+      social: '',
+      omni: '',
+      finance: '',
+    }));
+    setNewModalOpen(true);
+    onCreateNew?.();
+  };
+
+  const handleNewCurrencyChange = (field: keyof typeof newForm, value: string) => {
+    const formatted = formatCurrencyInput(value);
+    setNewForm((prev) => ({ ...prev, [field]: formatted }));
+  };
+
+  const handleSubmitNewProject = async () => {
+    if (!newForm.owner || !newForm.client || !newForm.programName || !newForm.startMonth || !newForm.endMonth) {
+      alert('Owner, Client, Project Name, Start Date, and End Date are required.');
+      return;
+    }
+    const entryPayload = {
+      projectCode: newForm.projectCode,
+      owner: newForm.owner,
+      client: newForm.client,
+      programName: newForm.programName,
+      programType: newForm.programType,
+      region: newForm.region,
+      startMonth: newForm.startMonth,
+      endMonth: newForm.endMonth,
+      revenue: parseCurrencyInput(newForm.revenue),
+      totalFees: newTotalFees,
+      status: newForm.status,
+      accounts: parseCurrencyInput(newForm.accounts),
+      creative: parseCurrencyInput(newForm.creative),
+      design: parseCurrencyInput(newForm.design),
+      strategy: parseCurrencyInput(newForm.strategy),
+      media: parseCurrencyInput(newForm.media),
+      studio: parseCurrencyInput(newForm.studio),
+      creator: parseCurrencyInput(newForm.creator),
+      social: parseCurrencyInput(newForm.social),
+      omni: parseCurrencyInput(newForm.omni),
+      finance: parseCurrencyInput(newForm.finance),
+    };
+
+    try {
+      const res = await authFetch('/api/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry: entryPayload }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || 'Failed to create project');
+      }
+      const data = await res.json();
+      const saved = data?.entry || entryPayload;
+      const updatedEntries = [saved as PipelineEntry, ...pipelineEntries].sort((a, b) =>
+        (b.createdAt || b.startMonth || '').localeCompare(a.createdAt || a.startMonth || '')
+      );
+      setPipelineEntries(updatedEntries);
+      cloudStorage.setItem('pipeline-entries', JSON.stringify(updatedEntries));
+      setNewModalOpen(false);
+    } catch (err) {
+      console.error('Failed to create pipeline entry', err);
+      alert('Could not create project. Please try again.');
+    }
+  };
 
   // Function to determine if a project has PM data saved
   const hasProjectManagementData = (projectCode: string): boolean => {
@@ -352,15 +518,130 @@ export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject
         <div className="mb-6">
           <div className="flex items-center gap-3">
             {/* New Project Button */}
-            <button
-              onClick={onCreateNew}
-              className="flex items-center gap-2 px-4 py-2 bg-[#4A90E2] text-white rounded-md hover:bg-[#357ABD] transition-colors text-sm font-medium"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Project
-            </button>
+            <Dialog open={newModalOpen} onOpenChange={setNewModalOpen}>
+              <DialogTrigger asChild>
+                <button
+                  onClick={handleOpenNew}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#4A90E2] text-white rounded-md hover:bg-[#357ABD] transition-colors text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Project
+                </button>
+              </DialogTrigger>
+
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add Pipeline Entry</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Project Number</label>
+                    <Input value={newForm.projectCode} readOnly className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Entry Type</label>
+                    <Select value={newForm.entryType} onValueChange={(v) => setNewForm(prev => ({...prev, entryType: v as any}))}>
+                      <SelectTrigger><SelectValue placeholder="Select entry type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="In Plan">In Plan</SelectItem>
+                        <SelectItem value="New to Plan">New to Plan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <Select value={newForm.status} onValueChange={(v) => setNewForm(prev => ({...prev, status: v}))}>
+                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Owner</label>
+                    <Select value={newForm.owner} onValueChange={(v) => setNewForm(prev => ({...prev, owner: v}))}>
+                      <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+                      <SelectContent>
+                        {OWNER_OPTIONS.map(o => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Client</label>
+                    <Input value={newForm.client} onChange={(e) => setNewForm(prev => ({...prev, client: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Program Name</label>
+                    <Input value={newForm.programName} onChange={(e) => setNewForm(prev => ({...prev, programName: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Region</label>
+                    <Select value={newForm.region} onValueChange={(v) => setNewForm(prev => ({...prev, region: v}))}>
+                      <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                      <SelectContent>
+                        {REGION_OPTIONS.map(r => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Program Type</label>
+                    <Select value={newForm.programType} onValueChange={(v) => setNewForm(prev => ({...prev, programType: v}))}>
+                      <SelectTrigger><SelectValue placeholder="Select program type" /></SelectTrigger>
+                      <SelectContent>
+                        {PROGRAM_TYPE_OPTIONS.map(p => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Start Date</label>
+                    <Input
+                      type="date"
+                      value={newForm.startMonth}
+                      onChange={(e) => setNewForm(prev => ({...prev, startMonth: e.target.value}))}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Select the project start date</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">End Date</label>
+                    <Input
+                      type="date"
+                      value={newForm.endMonth}
+                      onChange={(e) => setNewForm(prev => ({...prev, endMonth: e.target.value}))}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Select the project end date</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Revenue</label>
+                    <Input value={newForm.revenue} onChange={(e) => handleNewCurrencyChange('revenue', e.target.value)} placeholder="$0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Total Fees (auto)</label>
+                    <Input value={newTotalFees.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} readOnly className="bg-gray-50" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Department Fees</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {(['accounts','creative','design','strategy','media','studio','creator','social','omni','finance'] as const).map((field) => (
+                        <div key={field} className="space-y-1">
+                          <label className="text-xs text-gray-600 capitalize">{field}</label>
+                          <Input
+                            value={(newForm as any)[field]}
+                            onChange={(e) => handleNewCurrencyChange(field as any, e.target.value)}
+                            placeholder="$0"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button variant="outline" onClick={() => setNewModalOpen(false)}>Cancel</Button>
+                  <Button onClick={handleSubmitNewProject}>Save</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* Divider */}
             <div className="h-6 w-px bg-gray-300"></div>
@@ -620,4 +901,3 @@ export default function PMDashboard({ user, onLogout, onBackToHub, onOpenProject
     </div>
   );
 }
-
