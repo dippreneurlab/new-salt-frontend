@@ -117,7 +117,7 @@ export default function ThreeInOne({
   }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [milestonesDrawerOpen, setMilestonesDrawerOpen] = useState(false);
   
   // Task assignment state
@@ -1806,10 +1806,12 @@ export default function ThreeInOne({
         cloudStorage.setItem('saltxc-all-quotes', JSON.stringify(quotes));
 
         // Persist immediately to the backend so drafts are stored in DB
+        let savedRemotely = true;
         try {
           await upsertQuoteDraft(editingQuoteId, updatedQuote);
         } catch (persistErr) {
           console.error('❌ Failed to persist quote to backend', persistErr);
+          savedRemotely = false;
         }
         
         // refresh list cache too
@@ -1822,9 +1824,13 @@ export default function ThreeInOne({
           updatedQuote: quotes[idx]
         });
         
-        // Show saved status
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+        // Show saved status only if backend persisted successfully
+        if (savedRemotely) {
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        } else {
+          setSaveStatus('error');
+        }
       } else {
         console.warn('⚠️ Could not find quote to persist:', {
           editingQuoteId,
@@ -1834,7 +1840,7 @@ export default function ThreeInOne({
       }
     } catch (error) {
       console.error('❌ Error persisting quote state:', error);
-      setSaveStatus('idle');
+      setSaveStatus('error');
     }
   };
   return (
@@ -2846,16 +2852,16 @@ export default function ThreeInOne({
                                   });
                                   
                                   // Trigger update event
-                                  window.dispatchEvent(new Event('saltxc-quotes-updated'));
-                                  setSaveStatus('saved');
-                                  setTimeout(() => setSaveStatus('idle'), 1500);
-                                } catch (error) {
-                                  console.error('Failed to create quote:', error);
-                                  setSaveStatus('idle');
-                                  alert('Failed to create quote');
-                                }
-                              }}
-                            >
+                                window.dispatchEvent(new Event('saltxc-quotes-updated'));
+                                setSaveStatus('saved');
+                                setTimeout(() => setSaveStatus('idle'), 1500);
+                              } catch (error) {
+                                console.error('Failed to create quote:', error);
+                                setSaveStatus('error');
+                                alert('Failed to create quote');
+                              }
+                            }}
+                          >
                               + Add Quote
                             </Button>
                           </div>
@@ -2973,6 +2979,14 @@ export default function ThreeInOne({
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                   </svg>
                                   Saved!
+                                </span>
+                              )}
+                              {saveStatus === 'error' && (
+                                <span className="text-xs text-red-600 flex items-center gap-1">
+                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                  Save failed. Please try again.
                                 </span>
                               )}
                             </div>
